@@ -62,29 +62,62 @@ def get_arguments():
 def read_fasta(fasta_file):
     """Extract the complete genome sequence as a single string
     """
-    pass
+    with open(fasta_file, "r") as fichier:
+        sequence=""
+        for i, ligne in enumerate(fichier):
+            if(ligne[0])!=">":
+                sequence+=ligne.strip("\n").upper()
+        return(sequence)
 
 def find_start(start_regex, sequence, start, stop):
     """Find the start codon
     """
-    pass
+    first=start_regex.search(sequence, start, stop)
+    if first!=None:return first.span()[0]
+    else:return None
 
 
 def find_stop(stop_regex, sequence, start):
     """Find the stop codon
     """
-    pass
+    if start%3==0:mod=0
+    elif start==1 or start%3==1:mod=1
+    else :mod=2
+    first=stop_regex.search(sequence, start)
+    while(first!=None):
+        if first.span()[0]%3==mod:
+            return first.span()[0]
+        else :
+            first=stop_regex.search(sequence, first.span()[0]+1)
+    return None
 
 def has_shine_dalgarno(shine_regex, sequence, start, max_shine_dalgarno_distance):
     """Find a shine dalgarno motif before the start codon
     """
-    pass
+    shine=shine_regex.search(sequence, start-max_shine_dalgarno_distance, start-8)
+    if shine!=None:return True
+    else:return False
 
 def predict_genes(sequence, start_regex, stop_regex, shine_regex, 
                   min_gene_len, max_shine_dalgarno_distance, min_gap):
+    
     """Predict most probable genes
     """
-    pass
+    genes=[]
+    position_courante=0
+    while(len(sequence)-position_courante>=min_gap):
+        position_courante=find_start(start_regex,sequence,position_courante,len(sequence))
+        if(position_courante)!=None:
+            stop=find_stop(stop_regex,sequence,position_courante)
+            if(stop!=None):
+                if(stop-position_courante>=min_gene_len):
+                    if(has_shine_dalgarno(shine_regex, sequence, position_courante, max_shine_dalgarno_distance)):
+                        genes.append([position_courante+1,stop+3]) #Démarre à 1, +2 nucléotides codon stop
+                        position_courante=stop+2+min_gap #2 nucléotides condon stop
+                    else:position_courante+=1
+                else:position_courante+=1
+            else:position_courante+=1
+    return genes
 
 
 def write_genes_pos(predicted_genes_file, probable_genes):
@@ -150,11 +183,17 @@ def main():
     
     # Don't forget to uncomment !!!
     # Call these function in the order that you want
+    sequence=read_fasta(args.genome_file)
+    probable_genes=predict_genes(sequence, start_regex, stop_regex, shine_regex,args.min_gene_len, args.max_shine_dalgarno_distance, args.min_gap)
     # We reverse and complement
-    #sequence_rc = reverse_complement(sequence)
+    sequence_rc = reverse_complement(sequence)
+    probable_genes_comp=predict_genes(sequence_rc, start_regex, stop_regex, shine_regex,args.min_gene_len, args.max_shine_dalgarno_distance, args.min_gap)
+    for i, gene in enumerate(probable_genes_comp):
+        gene=[len(sequence)-(gene[0]+1),len(sequence)-(gene[1]+1)] #conversion
+        probable_genes_comp[i]=gene
     # Call to output functions
-    #write_genes_pos(args.predicted_genes_file, probable_genes)
-    #write_genes(args.fasta_file, sequence, probable_genes, sequence_rc, probable_genes_comp)
+    write_genes_pos(args.predicted_genes_file, probable_genes)
+    write_genes(args.fasta_file, sequence, probable_genes, sequence_rc, probable_genes_comp)
 
 
 
